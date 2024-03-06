@@ -1,0 +1,201 @@
+<?php 
+
+// please install PHPMailer before using this project
+
+    define('Access', TRUE);
+    include "./AdditionalPHP/startSession.php";
+	use PHPMailer\PHPMailer\PHPMailer;
+	use PHPMailer\PHPMailer\Exception;
+	// require 'C:\xampp\composer\vendor\autoload.php';
+?>
+
+<?php
+    include "connection.php";
+
+    $email = "";
+    $errCriteria = "";
+
+    if ($_SERVER["REQUEST_METHOD"] == "POST") {
+
+        if ((empty($_POST['email']))){
+            $errCriteria = "Email required";
+        } else {
+            $email = test_input($_POST["email"]);
+            // check if name only contains letters and whitespace
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $emailCriteria = "Invalid email format";
+            }
+            else {
+                $captcha = $_POST["g-recaptcha-response"];
+				
+						// Add your recpatcha secrey key below  -- Step 1
+						
+						
+                $secretkey = "6LcweQwpAAAAAGuXP0xEpP9MyPoTbeqBJLJEv89G";
+		
+                $url = 'https://www.google.com/recaptcha/api/siteverify?secret='.urldecode($secretkey).'&response='.urldecode($captcha).'';
+                $response = file_get_contents($url);
+                $responseKey = json_decode($response, TRUE);
+
+                if($responseKey['success'])
+                {
+                    $sql = "SELECT * FROM user WHERE email='$email'";
+                    $result= mysqli_query($conn, $sql);
+
+                    if(mysqli_num_rows($result) === 1){
+                        $row = mysqli_fetch_assoc($result);
+
+                        $uname = $row['uname'];
+
+                        $alphas = range('A', 'Z');
+                        $numbers = range(0,26);
+                        $symbols = array('@', '#', '$', '%');
+
+                        $newPassword = "";
+                        $passLength = rand(8,20);
+
+                        for($i = 0; $i <= $passLength; $i++)
+                        {
+                            $a = $alphas[rand(0,25)];
+                            $n = $numbers[rand(0,25)];
+                            $s = $symbols[rand(0,3)];
+
+                            $newPassword .= $a . $n . $s;
+                        }
+						
+						$to = $row['email'];
+/*
+                        $to = $row['email'];
+                        $subject = "Reset Password";
+                        $message = "Username: <b>$uname</b><br>Password: <b>$newPassword</b><br><br><b>Please reset your password after you login.</b>";
+                        $headers = "From: Boulangerie.cakeshop@gmail.com \r\n";
+                        $headers .= "MIME-Version: 1.0" . "\r\n";
+                        $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
+
+                        mail($to, $subject, $message, $headers);
+						
+*/						
+						  $mail = new PHPMailer();
+						  $mail->IsSMTP();
+
+						  $mail->SMTPDebug  = 0;  
+						  $mail->SMTPAuth   = TRUE;
+						  $mail->SMTPSecure = "tls";
+						  $mail->Port       = 587;
+						  $mail->Host       = "smtp.gmail.com"; // change it according to your use - gmail or outlook  -- Step 2
+						  $mail->Username   = ""; // add your gmail id here  -- Step 3
+						  $mail->Password   = ""; // add your gmail password here  -- Step 4
+
+						  $mail->IsHTML(true);
+						  $mail->AddAddress($to, "recipient-name");
+						  $mail->Subject = "Boulangerie - Reset Password";
+						  $content = "Username: <b>$uname</b><br>Password: <b>$newPassword</b><br><br><b>Please reset your password after you login.</b>";
+
+						  $mail->MsgHTML($content); 
+						  if(!$mail->Send()) {
+							echo "Error while sending Email.";
+							var_dump($mail);
+						  } else {
+							echo "Email sent successfully";
+						  }
+
+                        $passHash = password_hash($newPassword, PASSWORD_BCRYPT);
+
+                        $sql = "UPDATE user SET pass='$passHash' WHERE uname='$uname'";
+
+                        if(mysqli_query($conn, $sql)){
+                            setcookie("resetPassword","resetMailSent");
+                            header('location: passwordResetPage.php');
+                        }
+                    } else {
+                        $errCriteria = "Cannot find your account!";
+                    }
+                    
+                    
+                } else {
+                    $errCriteria = "Please confirm the reCAPTCHA";
+                }
+            }
+        }
+    }
+      
+    function test_input($data) {
+        $data = trim($data);
+        $data = stripslashes($data);
+        $data = htmlspecialchars($data);
+        return $data;
+    }
+?>
+
+<!DOCTYPE html>
+<html lang="en-MU">
+    <head>
+        <meta charset="utf-8">
+        <title>Boulangerie | Reset Password</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <!--CSS File-->
+        <link rel="stylesheet" type="text/css" href="Common.css">
+        <link rel="stylesheet" type="text/css" href="Account.css">
+        <!-- Font Awesome -->
+        <script src="https://kit.fontawesome.com/0e16635bd7.js" crossorigin="anonymous"></script>
+        <!--BOXICONS-->
+        <link href='https://unpkg.com/boxicons@2.0.7/css/boxicons.min.css' rel='stylesheet'>
+        <!-- Animate CSS -->
+        <link rel="stylesheet"href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+        <!--reCAPTCHA-->
+        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+        <script type="text/javascript">
+  var onloadCallback = function() {
+    alert("grecaptcha is ready!");
+  };
+</script>
+<script src="https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit"
+    async defer>
+</script>
+    </head>
+
+    <body>
+        <?php $page = 'forgetpassword';?>
+
+        <!--Start Navigation Bar-->
+        <?php include './Includes/MobileNavBar.php';;?>
+        <!--End Navigation Bar-->
+
+
+        <!--Start Navigation Bar @media 1200px-->
+        <?php include './Includes/PcNavBar.php';?>
+        <!--End Navigation Bar @media 1200px-->
+
+        <!--Start Background Image-->
+        <div class="bg-image-container">
+            <div class="bg-image-forget"></div>
+        </div>
+        <!--End Background Image-->
+
+        <!--Start ForgetPassword Panel-->
+        <div class="login-page">
+            <div class="form">
+                <div class="login">
+                    <div class="login-header">
+                        <h3>Reset Password</h3>
+                        <p>Enter your email below</p>
+                    </div>
+                </div>
+
+                <form class="login-form" method="post" actions="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
+                    <input type="text" name="email" placeholder="Email" value="<?php echo $email;?>"/>
+                    <span class="input-error"><?php if($errCriteria != ""){echo "$errCriteria <br><br>";}?></span>
+					
+					<!--  Add your recpatcha site key below -- Step 5 -->
+					
+                    <div name="g-recaptcha-response" class="g-recaptcha" data-sitekey="6LcweQwpAAAAAGuXP0xEpP9MyPoTbeqBJLJEv89G"></div>
+					
+                    <button>Reset Password</button>
+                </form>
+            </div>
+        </div>
+        <!--End Login Panel-->
+
+        
+    </body>
+</html>
